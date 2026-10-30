@@ -436,6 +436,7 @@ export const DICT: Record<string, [string, string]> = {
   'Camera not available in this browser (requires HTTPS).': ['此瀏覽器無法使用相機（需要 HTTPS）。', 'このブラウザではカメラを使えません（HTTPS が必要）。'],
   'Code too long for a QR code — use copy/paste or file instead.': ['代碼太長無法產生 QR Code — 請改用複製貼上或檔案。', 'QR コードには長すぎます — コピー＆ペーストかファイルを使ってください。'],
 
+  'This browser is too old to read compressed invite codes. Update Safari / iOS (16.4 or newer) or use Chrome.': ['此瀏覽器版本過舊，無法讀取壓縮的邀請碼。請更新 Safari / iOS（16.4 以上）或改用 Chrome。', 'このブラウザは古いため圧縮された招待コードを読めません。Safari / iOS を 16.4 以降に更新するか Chrome を使ってください。'],
   // ---------------------------------------------------------------- touch / misc
   'FIRE': ['射擊', '射撃'],
   'AIM': ['瞄準', 'エイム'],

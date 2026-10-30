@@ -88,10 +88,12 @@ export function invitesPanel(game: Game): void {
       h('li', null, h('span', null, 'Paste the reply into that invite and press ', h('b', null, 'Connect'), '. They appear in the city; everyone else connects to them automatically.')),
     ),
     h('div', { class: 'row', style: 'margin:14px 0' },
-      h('button', { class: 'btn primary', on: { click: async () => {
+      h('button', { class: 'btn primary', on: { click: async (ev: Event) => {
         if (!game.room.isHost) return;
         if (Object.keys(game.room.state?.players ?? {}).length >= 10) { game.toast('Room is full (10 players).', 'warn'); return; }
-        const b = document.activeElement as HTMLButtonElement;
+        // the clicked button itself — Safari does not focus buttons on click, so activeElement would be <body>
+        const b = ev.currentTarget as HTMLButtonElement;
+        if (b.disabled) return;
         b.disabled = true;
         b.textContent = 'Gathering ICE…';
         try { await net.createInvite(); } catch (e) { game.toast(`Could not create invite: ${(e as Error).message}`, 'error'); }

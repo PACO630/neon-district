@@ -118,13 +118,18 @@ export async function packText(s: string): Promise<string> {
   const raw = enc.encode(s);
   let bytes: Uint8Array;
   let tag: string;
+  bytes = raw;
+  tag = 'p';
+  // compression is an optimisation only: any browser that cannot do it (older Safari) sends plain text
   if (typeof CompressionStream !== 'undefined') {
-    const cs = new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'));
-    bytes = new Uint8Array(await new Response(cs).arrayBuffer());
-    tag = 'z';
-  } else {
-    bytes = raw;
-    tag = 'p';
+    try {
+      const cs = new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+      bytes = new Uint8Array(await new Response(cs).arrayBuffer());
+      tag = 'z';
+    } catch {
+      bytes = raw;
+      tag = 'p';
+    }
   }
   return tag + toB64Url(bytes);
 }
@@ -134,7 +139,7 @@ export async function unpackText(s: string): Promise<string> {
   const bytes = fromB64Url(s.slice(1));
   if (tag === 'p') return dec.decode(bytes);
   if (tag !== 'z') throw new PacketError('unknown encoding');
-  if (typeof DecompressionStream === 'undefined') throw new PacketError('This browser cannot decompress invite codes');
+  if (typeof DecompressionStream === 'undefined') throw new PacketError('This browser is too old to read compressed invite codes. Update Safari / iOS (16.4 or newer) or use Chrome.');
   const ds = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
   return dec.decode(new Uint8Array(await new Response(ds).arrayBuffer()));
 }
