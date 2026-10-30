@@ -18,7 +18,8 @@ import { RoomAuthority } from '../room/RoomAuthority';
 import { ArenaHud } from '../ui/ArenaHud';
 import { CityHud } from '../ui/CityHud';
 import { h, modal } from '../ui/dom';
-import { loadingScreen, mainMenu, settingsPanel } from '../ui/Menus';
+import { loadingScreen, mainMenu, playPanel, settingsPanel } from '../ui/Menus';
+import { normalizeRoomCode } from '../networking/webrtc/RelayLink';
 import { armoryPanel, barPanel, gatePanel, pauseMenu, vaultPanel } from '../ui/RoomPanels';
 import type { GameContext } from './GameContext';
 
@@ -94,6 +95,9 @@ export class Game implements GameContext {
     };
     window.addEventListener('beforeunload', () => { if (this.room.state) this.net.shutdown(); });
     this.showMenu();
+    // opened from an invite link (…#room=ABC123): go straight to the join screen with the code filled in
+    const linkCode = normalizeRoomCode(location.hash.match(/room=([A-Za-z0-9]+)/)?.[1] ?? '');
+    if (linkCode) playPanel(this, { code: linkCode });
     loading.set(1, 'Welcome to NEON DISTRICT');
     loading.done();
     requestAnimationFrame(this.frame);
@@ -143,6 +147,31 @@ export class Game implements GameContext {
     this.room.createRoom();
     this.enterCity();
     this.toast('Room created. Open ROOM · INVITES to invite friends.', 'success');
+  }
+
+  /** Shareable link that opens the join screen with this room's code. */
+  inviteLink(code: string): string { return `${location.origin}${location.pathname}#room=${code}`; }
+
+  /** Join by short room code. Resolves once the host has admitted us and sent the room state. */
+  async joinByCode(raw: string): Promise<void> {
+    const code = normalizeRoomCode(raw);
+    if (code.length < 4) throw new Error('Enter the room code.');
+    if (this.room.state) throw new Error('Leave your current room first.');
+    this.audio.unlock();
+    this.room.profile = { ...this.room.profile, name: this.settings.name, look: this.settings.look, finish: this.settings.finish };
+    this.joinPending = true;
+    this.room.joinByCode(code);
+    await new Promise<void>((resolve, reject) => {
+      const offState = this.room.on('state', () => { if (this.room.state?.players[this.room.selfId]) { done(); resolve(); } });
+      const onBye = this.net.onJson(MSG.BYE, (_f, m) => { if (!this.room.state && m.reason && m.reason !== 'leave') { done(); this.net.shutdown(); this.joinPending = false; reject(new Error(String(m.reason))); } });
+      const timer = window.setTimeout(() => {
+        done();
+        this.net.shutdown();
+        this.joinPending = false;
+        reject(new Error('Room not found. Check the code, and make sure the host still has the game open.'));
+      }, 25000);
+      const done = () => { clearTimeout(timer); offState(); onBye(); };
+    });
   }
 
   async joinStart(code: string): Promise<{ answer: string; hostName: string }> {

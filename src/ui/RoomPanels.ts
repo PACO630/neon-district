@@ -21,7 +21,7 @@ function live(game: Game, m: { root: HTMLElement }, draw: () => void): void {
 
 // ---------------------------------------------------------------- INVITES
 export function invitesPanel(game: Game): void {
-  const m = modal('ROOM · INVITES', { tag: game.room.state?.roomId ?? '', size: 'wide' });
+  const m = modal('ROOM · INVITES', { size: 'wide' });
   mount(m);
   const net = game.net;
   const list = h('div', { class: 'col' });
@@ -81,7 +81,31 @@ export function invitesPanel(game: Game): void {
   };
   const prevChanged = net.onInvitesChanged;
   net.onInvitesChanged = () => { prevChanged(); draw(); };
+  // ---- primary: short room code + invite link (anyone in the room may share it)
+  const code = game.room.state?.roomId ?? '';
+  const link = game.inviteLink(code);
+  const codeBox = h('div', { class: 'room-code-box' },
+    h('div', { class: 'col', style: 'gap:12px;flex:1;min-width:0' },
+      h('span', { class: 'label' }, 'ROOM CODE'),
+      h('div', { class: 'room-code', 'data-no-i18n': true }, code),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn primary', on: { click: async () => game.toast((await copyText(code)) ? 'Room code copied.' : 'Copy failed — select manually.', 'info') } }, 'Copy code'),
+        h('button', { class: 'btn', on: { click: async () => game.toast((await copyText(link)) ? 'Invite link copied.' : 'Copy failed — select manually.', 'info') } }, 'Copy link'),
+        typeof navigator.share === 'function' && 'share' in navigator ? h('button', { class: 'btn', on: { click: () => shareText(link, 'NEON DISTRICT') } }, 'Share') : null,
+      ),
+      h('div', { class: 'note' }, 'Friends enter this code under PLAY → JOIN, or open the link. Players find each other through free public Nostr relays; game traffic then goes directly between players (WebRTC).'),
+    ),
+  );
+  qrCanvas(link).then((q) => codeBox.appendChild(q));
   m.body.append(
+    codeBox,
+    h('details', { class: 'advanced' },
+      h('summary', null, 'Advanced: manual invite codes (works without the internet relays)'),
+      manualSection()),
+  );
+  draw();
+  function manualSection(): HTMLElement {
+  return h('div', { class: 'col' },
     h('ol', { class: 'steps' },
       h('li', null, h('span', null, 'Click ', h('b', null, 'New invite'), ' and send the code to ONE friend (chat app, QR, or file).')),
       h('li', null, h('span', null, 'They paste it under PLAY → JOIN and send you a ', h('b', null, 'REPLY'), ' code.')),
@@ -104,7 +128,7 @@ export function invitesPanel(game: Game): void {
     ),
     list,
   );
-  draw();
+  }
 }
 
 // ---------------------------------------------------------------- PLAYERS

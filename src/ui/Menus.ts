@@ -51,14 +51,14 @@ export function mainMenu(game: Game): HTMLElement {
       h('div', { class: 'menu-lang' }, h('span', { class: 'label' }, 'LANGUAGE'), languagePicker(game)),
       h('div', { class: 'panel menu-card' },
         h('h3', null, '// HOW MULTIPLAYER WORKS'),
-        h('p', null, 'There is no game server. The host creates a room and sends each friend a one-time INVITE code. The friend answers with a REPLY code that the host pastes back. After that, everyone connects directly to everyone else.'),
+        h('p', null, 'There is no game server. The host creates a room and gets a short ROOM CODE. Friends type the code (or open the invite link) and everyone connects directly to everyone else.'),
       ),
     ),
   );
 }
 
 // ---------------------------------------------------------------- PLAY
-export function playPanel(game: Game): void {
+export function playPanel(game: Game, opts: { code?: string } = {}): void {
   const m = modal('PLAY', { tag: 'P2P', size: 'narrow' });
   document.getElementById('ui')!.appendChild(m.root);
   const s = game.settings;
@@ -81,13 +81,42 @@ export function playPanel(game: Game): void {
   const hostPane = () => h('div', { class: 'col' },
     h('ol', { class: 'steps' },
       h('li', null, h('span', null, 'Create the room — you enter ', h('b', null, 'NEON CITY'), ' immediately as the host.')),
-      h('li', null, h('span', null, 'Open ', h('b', null, 'ROOM · INVITES'), ' (top right). Generate one invite ', h('b', null, 'per friend'), ' and send it (copy, QR or file).')),
-      h('li', null, h('span', null, 'Your friend pastes it and sends you back a ', h('b', null, 'REPLY'), ' code. Paste it into the same invite slot. Done.')),
+      h('li', null, h('span', null, 'Share the 6-character ', h('b', null, 'ROOM CODE'), ' (or the invite link) shown under ', h('b', null, 'ROOM · INVITES'), '.')),
+      h('li', null, h('span', null, 'Friends enter the code under PLAY → JOIN, or simply open the link. That is all.')),
     ),
     h('div', { class: 'note' }, 'Keep this tab open: the room exists only while players are connected. If you leave, the next player in join order becomes host.'),
     h('button', { class: 'btn primary', on: { click: async () => { if (!commitName()) return; m.close(); await game.hostRoom(); } } }, 'Create room'),
   );
   const joinPane = () => {
+    const input = h('input', { class: 'input code-input', maxlength: 12, placeholder: 'ROOM CODE', autocapitalize: 'characters', autocomplete: 'off', spellcheck: false, value: opts.code ?? '' }) as HTMLInputElement;
+    const status = h('div', { class: 'col' });
+    const btn = h('button', { class: 'btn primary' }, 'Join') as HTMLButtonElement;
+    const go = async () => {
+      if (!commitName() || btn.disabled) return;
+      btn.disabled = true;
+      status.replaceChildren(h('div', { class: 'row note' }, h('span', { class: 'spinner' }), 'Searching for the room…'));
+      try {
+        await game.joinByCode(input.value);
+        m.close();
+      } catch (e) {
+        status.replaceChildren(h('div', { class: 'err' }, (e as Error).message));
+      }
+      btn.disabled = false;
+    };
+    btn.addEventListener('click', go);
+    input.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') go(); });
+    input.addEventListener('input', () => { const p = input.selectionStart; input.value = input.value.toUpperCase(); input.setSelectionRange(p, p); });
+    setTimeout(() => input.focus(), 50);
+    return h('div', { class: 'col' },
+      h('div', { class: 'note' }, 'Enter the room code your friend shared (or open their invite link).'),
+      h('div', { class: 'row code-row' }, input, btn),
+      status,
+      h('details', { class: 'advanced' },
+        h('summary', null, 'Advanced: manual invite code (works without the internet relays)'),
+        manualJoinPane()),
+    );
+  };
+  const manualJoinPane = () => {
     const code = h('textarea', { class: 'input', placeholder: 'Paste the INVITE code from the host (starts with NDX-INVITE.)' }) as HTMLTextAreaElement;
     const out = h('div', { class: 'col' });
     const scanBox = h('div');
@@ -139,7 +168,7 @@ export function playPanel(game: Game): void {
     );
   };
   m.body.append(h('div', { class: 'field' }, h('span', { class: 'label' }, 'Nickname'), nameInput), h('div', { style: 'height:14px' }), tabs, pane);
-  setTab('host');
+  setTab(opts.code ? 'join' : 'host');
 }
 
 // ---------------------------------------------------------------- SETTINGS

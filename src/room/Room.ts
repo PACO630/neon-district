@@ -4,6 +4,7 @@
 import { Emitter } from '../core/Emitter';
 import { Net } from '../networking/Net';
 import { MSG, randomId } from '../networking/protocol';
+import { newRoomCode } from '../networking/webrtc/RelayLink';
 import { ECONOMY } from '../config/economy';
 import { emptyRoom, sortedPlayers, validateRoomState, type Device, type Look, type PlayerInfo, type RoomState } from './RoomState';
 
@@ -52,6 +53,7 @@ export class Room extends Emitter<RoomEvents> {
       return null;
     };
     net.onInviteJoined = (id, info) => this.hostAddPlayer(id, info);
+    net.isMember = (id) => !!this.state?.players[id];
     net.onJoined = () => this.emit('joined');
     net.onPeerClose = (id, reason) => this.handlePeerClose(id, reason);
 
@@ -73,14 +75,20 @@ export class Room extends Emitter<RoomEvents> {
 
   // ------------------------------------------------------------ lifecycle
   createRoom(): void {
-    const roomId = randomId(6).toUpperCase();
-    this.net.roomId = roomId;
-    this.net.hostId = this.selfId;
+    const roomId = newRoomCode();
     this.net.selfName = this.profile.name;
     this.state = emptyRoom(roomId, this.selfId);
+    this.net.openCodeRoom(roomId, true);
     this.hostAddPlayer(this.selfId, { name: this.profile.name, info: this.net.identInfo() });
     this.net.start();
     this.emit('hostChanged', this.selfId, true);
+  }
+
+  /** Join a room by its short code; resolves via the 'joined' / 'state' events. */
+  joinByCode(code: string): void {
+    this.net.selfName = this.profile.name;
+    this.net.start();
+    this.net.openCodeRoom(code, false);
   }
 
   leave(reason = 'You left the room.'): void {
@@ -139,8 +147,12 @@ export class Room extends Emitter<RoomEvents> {
     };
     this.state.players[id] = p;
     // tell everyone already present to open a direct link to the newcomer (full mesh)
-    for (const other of Object.keys(this.state.players)) {
-      if (other !== id && other !== this.selfId) this.net.sendJson(other, MSG.CONNECT_TO, { id });
+    // manually invited peers are only linked to the host: ask everyone else to open a direct link
+    // (players who came by room code are already meshed by the relay pairing)
+    if (this.net.isManualPeer(id)) {
+      for (const other of Object.keys(this.state.players)) {
+        if (other !== id && other !== this.selfId) this.net.sendJson(other, MSG.CONNECT_TO, { id, manual: true });
+      }
     }
     for (const fn of this.hostHooks.onJoin) fn(p);
     if (id !== this.selfId) this.systemChat(`${p.name} joined the room.`);

@@ -333,7 +333,9 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; background: var
 .tb-reload { right: calc(28px * var(--ts)); bottom: calc(204px * var(--ts)); width: calc(50px * var(--ts)); height: calc(50px * var(--ts)); }
 .tb-grenade { right: calc(170px * var(--ts)); bottom: calc(76px * var(--ts)); width: calc(50px * var(--ts)); height: calc(50px * var(--ts)); }
 .tb-swap { right: calc(100px * var(--ts)); bottom: calc(214px * var(--ts)); width: calc(46px * var(--ts)); height: calc(46px * var(--ts)); }
-.tb-use { right: calc(236px * var(--ts)); bottom: calc(150px * var(--ts)); width: calc(62px * var(--ts)); height: calc(62px * var(--ts)); border-radius: 14px; opacity: 0.25; }
+.tb-use { right: calc(236px * var(--ts)); bottom: calc(150px * var(--ts)); width: calc(62px * var(--ts)); height: calc(62px * var(--ts)); border-radius: 14px; }
+/* the action button exists only while there is something to interact with */
+.tb-use:not(.available) { visibility: hidden; pointer-events: none; }
 .tb-use.available { opacity: 1; border-color: var(--amber); color: var(--amber); background: rgba(40, 26, 4, 0.55); animation: pulse 1.2s infinite; }
 .touch-layer[data-mode='city'] .tb-use { right: calc(110px * var(--ts)); bottom: calc(96px * var(--ts)); }
 .touch-layer[data-mode='city'] .tb-jump { right: calc(24px * var(--ts)); bottom: calc(40px * var(--ts)); }
@@ -398,3 +400,12 @@ body.is-mobile .id-card { padding: 6px 10px; }
 body[data-lang='zh'] #ui *, body[data-lang='ja'] #ui *, body[data-lang='zh'] #toasts *, body[data-lang='ja'] #toasts * { letter-spacing: 0.02em; }
 body.buy-open .chat { display: none; }
 .weather-row { justify-content: space-between; padding: 6px 0; }
+
+/* room codes */
+.room-code-box { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; padding: 14px; border: 1px solid var(--line-strong); background: rgba(0, 229, 255, 0.04); }
+.room-code { font: 900 clamp(34px, 7vw, 54px)/1 var(--f-mono); letter-spacing: 0.22em; color: #fff; text-shadow: 0 0 18px rgba(0, 229, 255, 0.55); -webkit-user-select: text; user-select: text; }
+.code-row { flex-wrap: nowrap; }
+.code-input { font: 800 26px/1 var(--f-mono) !important; letter-spacing: 0.3em; text-transform: uppercase; text-align: center; min-height: 54px; }
+details.advanced { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 10px; }
+details.advanced > summary { cursor: pointer; color: var(--dim); font: 600 13px/1.4 var(--f-ui); letter-spacing: 0.04em; padding: 4px 0; }
+details.advanced[open] > summary { color: var(--text); margin-bottom: 12px; }

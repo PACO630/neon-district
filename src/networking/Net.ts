@@ -3,6 +3,8 @@
 import { PacketError, Reader } from './binary';
 import { decodeFrame, encodeJson, encodePing, MSG, PROTOCOL_VERSION, randomId } from './protocol';
 import { PeerLink } from './webrtc/PeerLink';
+import type { Link } from './webrtc/Link';
+import { CodeRoom, RelayLink } from './webrtc/RelayLink';
 import { decodeAnswer, decodeInvite, encodeAnswer, encodeInvite } from './signaling/manual';
 
 export type JsonHandler = (from: string, msg: any) => void;
@@ -19,12 +21,16 @@ export class Net {
   selfName = 'Runner';
   roomId = '';
   hostId = '';
-  readonly links = new Map<string, PeerLink>();
+  readonly links = new Map<string, Link>();
   readonly invites = new Map<string, PendingInvite>();
   private jsonHandlers = new Map<number, JsonHandler[]>();
   private binHandlers = new Map<number, BinHandler[]>();
   private heartbeat = 0;
   private joinLink: PeerLink | null = null;
+  private codeRoom: CodeRoom | null = null;
+  private codeJoining = false;
+  /** Host-side: is this id already a room member? (set by the room layer) */
+  isMember: (id: string) => boolean = () => false;
   bytesIn = 0;
   bytesOut = 0;
   /** Invoked when a link to an identified peer opens / closes. */
@@ -40,7 +46,11 @@ export class Net {
 
   constructor() {
     this.onJson(MSG.SIG, (from, m) => this.handleSig(from, m));
-    this.onJson(MSG.CONNECT_TO, (from, m) => { if (from === this.hostId && typeof m.id === 'string') this.connectTo(m.id); });
+    this.onJson(MSG.CONNECT_TO, (from, m) => {
+      if (from !== this.hostId || typeof m.id !== 'string') return;
+      if (m.manual) this.manualIds.add(m.id);
+      this.connectTo(m.id);
+    });
     this.onBin(MSG.PING, (from, r) => { const t = r.f64(); this.links.get(from)?.send(encodePing(MSG.PONG, t), false); });
     this.onBin(MSG.PONG, (from, r) => {
       const l = this.links.get(from);
@@ -65,6 +75,9 @@ export class Net {
     this.invites.clear();
     this.joinLink = null;
     for (const l of all) { l.onClose = () => {}; l.close('shutdown'); }
+    this.codeRoom?.leave();
+    this.codeRoom = null;
+    this.codeJoining = false;
     this.roomId = '';
     this.hostId = '';
   }
@@ -83,7 +96,7 @@ export class Net {
     return () => list.splice(list.indexOf(fn), 1);
   }
 
-  private dispatch(link: PeerLink, data: ArrayBuffer): void {
+  private dispatch(link: Link, data: ArrayBuffer): void {
     this.bytesIn += data.byteLength;
     let d;
     try { d = decodeFrame(data); } catch (e) { console.warn('[net] dropped packet from', link.remoteId, (e as Error).message); return; }
@@ -133,10 +146,10 @@ export class Net {
   peerIds(): string[] { return [...this.links.keys()].filter((id) => this.isConnected(id)); }
 
   // ------------------------------------------------------------- link wiring
-  private wire(link: PeerLink): void {
+  private wire(link: Link): void {
     link.onMessage = (l, data) => this.dispatch(l, data);
     link.onOpen = (l) => {
-      l.send(encodeJson(MSG.IDENT, { v: PROTOCOL_VERSION, id: this.selfId, name: this.selfName, room: this.roomId, info: this.identInfo() }), true);
+      l.send(encodeJson(MSG.IDENT, { v: PROTOCOL_VERSION, id: this.selfId, name: this.selfName, room: this.roomId, host: this.hostId, info: this.identInfo() }), true);
     };
     link.onClose = (l, reason) => {
       for (const inv of this.invites.values()) if (inv.link === l && inv.status !== 'joined') { inv.status = 'failed'; this.onInvitesChanged(); }
@@ -150,20 +163,22 @@ export class Net {
   /** Extra data sent in IDENT (player profile). Set by the room layer. */
   identInfo: () => any = () => ({});
 
-  private handleIdent(link: PeerLink, m: any): void {
+  private handleIdent(link: Link, m: any): void {
     if (link.identified) return;
     if (m.v !== PROTOCOL_VERSION || typeof m.id !== 'string' || typeof m.name !== 'string' || m.id.length > 16) { link.close('bad ident'); return; }
     if (link.remoteId && link.remoteId !== m.id) { link.close('identity mismatch'); return; }
     if (this.roomId && m.room && m.room !== this.roomId) { link.close('wrong room'); return; }
-    // Invite link on host side: run admission
+    // a code joiner learns who the host is from whoever answers first
+    if (this.codeJoining && !this.hostId && typeof m.host === 'string' && m.host) this.hostId = m.host;
+    // Invite link — or a newcomer arriving by room code — on the host side: run admission
     const inv = [...this.invites.values()].find((i) => i.link === link);
-    if (inv) {
+    const codeNewcomer = link instanceof RelayLink && this.isHost && !this.isMember(m.id);
+    if (inv || codeNewcomer) {
       const refuse = this.links.size >= MAX_PEERS ? 'Room is full (10 players).' : this.admit(m);
       if (refuse) {
         link.send(encodeJson(MSG.BYE, { reason: refuse }), true);
         setTimeout(() => link.close('refused'), 300);
-        inv.status = 'failed';
-        this.onInvitesChanged();
+        if (inv) { inv.status = 'failed'; this.onInvitesChanged(); }
         return;
       }
     }
@@ -174,9 +189,26 @@ export class Net {
     if (old && old !== link) { old.onClose = () => {}; old.close('replaced'); }
     this.links.set(m.id, link);
     if (inv) { inv.status = 'joined'; inv.joinerName = link.remoteName; this.onInvitesChanged(); this.onInviteJoined(m.id, m); }
+    if (codeNewcomer) this.onInviteJoined(m.id, m);
     if (link === this.joinLink) { this.joinLink = null; this.onJoined(); }
+    if (this.codeJoining && this.hostId && m.id === this.hostId) { this.codeJoining = false; this.onJoined(); }
     this.onPeerOpen(m.id);
   }
+
+  // ------------------------------------------------------------- room codes (relay-paired WebRTC)
+  /** ids of players who joined through a manual invite (they are not in the code room) */
+  readonly manualIds = new Set<string>();
+
+  /** Open (host) or join (guest) the code room. Every member of the code room links to every other. */
+  openCodeRoom(code: string, asHost: boolean): void {
+    this.codeRoom?.leave();
+    this.roomId = code;
+    if (asHost) this.hostId = this.selfId;
+    else { this.hostId = ''; this.codeJoining = true; }
+    this.codeRoom = new CodeRoom(code, (link) => this.wire(link));
+  }
+  get usingCode(): boolean { return !!this.codeRoom; }
+  isManualPeer(id: string): boolean { return this.links.get(id) instanceof PeerLink; }
 
   // ------------------------------------------------------------- host: manual invites
   async createInvite(): Promise<PendingInvite> {
@@ -198,6 +230,7 @@ export class Net {
     if (!inv) throw new Error('No matching invite. It may have been cancelled — create a new one.');
     if (inv.status !== 'waiting') throw new Error(`This invite was already ${inv.status === 'joined' ? 'used' : inv.status}. Create a new invite.`);
     inv.link.remoteId = a.id;
+    this.manualIds.add(a.id);
     inv.status = 'connecting';
     inv.joinerName = a.name;
     this.onInvitesChanged();
@@ -240,6 +273,8 @@ export class Net {
   /** Called on an existing peer (instructed by the host) to open a direct link to a newcomer. */
   async connectTo(id: string): Promise<void> {
     if (id === this.selfId || this.isConnected(id)) return;
+    // peers in the same code room are connected by the relay pairing already
+    if (this.codeRoom && !this.manualIds.has(id)) return;
     const link = new PeerLink(true);
     link.remoteId = id;
     this.wire(link);
@@ -264,16 +299,20 @@ export class Net {
       return;
     }
     const origin = from === this.hostId && typeof m.from === 'string' ? m.from : from;
-    let link = this.links.get(origin);
+    const existing = this.links.get(origin);
+    // relayed signaling is only for manually invited peers; code-room peers are paired already
+    if (existing && !(existing instanceof PeerLink)) return;
+    let link = existing as PeerLink | undefined;
     if (m.kind === 'offer') {
       if (link && link.state === 'open') return;
       if (link) { link.onClose = () => {}; link.close('re-offer'); }
-      link = new PeerLink(true);
-      link.remoteId = origin;
-      this.wire(link);
-      this.links.set(origin, link);
-      link.onCandidate = (c) => this.sendSig(origin, 'cand', c);
-      const answer = await link.acceptOffer(m.data);
+      const fresh = new PeerLink(true);
+      link = fresh;
+      fresh.remoteId = origin;
+      this.wire(fresh);
+      this.links.set(origin, fresh);
+      fresh.onCandidate = (c) => this.sendSig(origin, 'cand', c);
+      const answer = await fresh.acceptOffer(m.data);
       this.sendSig(origin, 'answer', answer);
     } else if (m.kind === 'answer' && link) {
       try { await link.acceptAnswer(m.data); } catch { /* duplicate */ }

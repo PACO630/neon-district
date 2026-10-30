@@ -7,9 +7,10 @@ export const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.cloudflare.com:3478' },
 ];
 
-export type LinkState = 'new' | 'connecting' | 'open' | 'closed';
+import type { Link, LinkState } from './Link';
+export type { LinkState };
 
-export class PeerLink {
+export class PeerLink implements Link {
   readonly pc: RTCPeerConnection;
   readonly rel: RTCDataChannel;
   readonly unrel: RTCDataChannel;
@@ -25,9 +26,9 @@ export class PeerLink {
   private remoteSet = false;
   private openCount = 0;
 
-  onOpen: (link: PeerLink) => void = () => {};
-  onClose: (link: PeerLink, reason: string) => void = () => {};
-  onMessage: (link: PeerLink, data: ArrayBuffer, reliable: boolean) => void = () => {};
+  onOpen: (link: Link) => void = () => {};
+  onClose: (link: Link, reason: string) => void = () => {};
+  onMessage: (link: Link, data: ArrayBuffer, reliable: boolean) => void = () => {};
   onCandidate: ((c: RTCIceCandidateInit) => void) | null = null;
 
   constructor(readonly trickle: boolean) {
