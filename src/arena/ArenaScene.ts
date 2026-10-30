@@ -79,6 +79,7 @@ export class ArenaScene {
   killfeed: KillFeedItem[] = [];
   spectateId: string | null = null;
   private deathAt = 0;
+  private respawnedAt = -10;
   prompt: string | null = null;
   centerMsg: { text: string; sub?: string; until: number; color?: string } | null = null;
   scoreboardOpen = false;
@@ -211,7 +212,7 @@ export class ArenaScene {
     const settled = force || (this.time - this.lastShotAt > 0.6 && this.time > this.reloadEnd);
     for (const [w, a] of Object.entries(me.ammo)) if (settled || !this.ammo[w]) this.ammo[w] = [a[0], a[1]];
     this.armor = me.armor;
-    if (!me.alive && this.alive) this.die(null);
+    if (!me.alive && this.alive && this.time - this.respawnedAt > 2) this.die(null);
     if (!this.owns(this.equipped)) this.equip(this.bestWeapon());
   }
 
@@ -320,6 +321,7 @@ export class ArenaScene {
         this.projMeshes.clear();
         if (sp) {
           this.alive = true;
+          this.respawnedAt = this.time;
           this.hp = 100;
           this.spectateId = null;
           this.mover.teleport(new THREE.Vector3(sp[0], sp[1], sp[2]), sp[3]);
@@ -487,7 +489,8 @@ export class ArenaScene {
     const frozen = phase === 'freeze' || !!this.actionHeld || phase === 'halftime' || phase === 'ended';
     this.phaseRemaining = Math.max(0, this.phaseRemaining - dt);
     const me = this.me;
-    if (me && !me.alive && this.alive) this.die(null);
+    // fallback only (kill events are authoritative); ignore stale state right after a respawn
+    if (me && !me.alive && this.alive && this.time - this.respawnedAt > 2) this.die(null);
 
     // ---- look (with recoil recovery)
     if (this.alive) {

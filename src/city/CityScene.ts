@@ -55,6 +55,11 @@ export class CityScene {
     this.env.rain.setGround(0);
     onProgress(0.75, 'Spawning citizens');
     this.npcs = new NpcSystem(this.scene, this.build.npcs);
+    // standing NPCs are solid (walkers stay ghost-like so they never trap a player against a wall)
+    for (const spot of this.build.npcs) {
+      if (spot.kind === 'walker') continue;
+      this.physics.addCylinder(spot.pos.clone().add(new THREE.Vector3(0, 0.9, 0)), 0.9, 0.3);
+    }
     this.mover = new Mover(this.physics, this.build.spawn);
     this.me = new Avatar(this.ctx.settings.look);
     this.me.showName(false);

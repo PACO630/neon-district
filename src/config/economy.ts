@@ -16,7 +16,7 @@ export const ECONOMY = {
 };
 
 export const MATCH_RULES = {
-  freezeTime: 10,      // s, buying only
+  freezeTime: 25,      // s, buying only (long enough for everyone to buy)
   buyWindow: 25,       // s after freeze ends while in spawn
   roundTime: 115,      // s
   bombTimer: 40,       // s

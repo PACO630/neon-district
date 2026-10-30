@@ -149,6 +149,14 @@ B(14, -50, 18, -47, 0, 1.4, 'containerBlue', { tile: 1.5 });
 B(-20, 44, -16, 47, 0, 1.4, 'metal', { tile: 1.5 });                       // ATK strip
 B(18, 44, 22, 47, 0, 1.4, 'containerRed', { tile: 1.5 });
 
+/** Set dressing that must also collide (rendered by ArenaBuilder, collided by host and clients). */
+export const ARENA_PROPS = {
+  lamps: [[-45, 30, -Math.PI / 2], [-45, 0, -Math.PI / 2], [45, 30, Math.PI / 2], [45, 0, Math.PI / 2], [0, 44, Math.PI], [0, -46, 0], [-30, -48, 0], [30, -48, 0], [-4, 20, Math.PI], [12, -18, Math.PI / 2], [-45, -4, -Math.PI / 2], [45, 14, Math.PI / 2], [-24, 44, Math.PI], [24, 44, Math.PI], [-13.5, 8, -Math.PI / 2], [7.5, 4, Math.PI / 2], [-13, -36, 0], [2, -36, 0]] as [number, number, number][],
+  floods: [[24, -15], [44, -39]] as [number, number][],
+  car: { x: -42, z: 14, yaw: 0.1 },
+  barrels: [[40, 34], [-26, 46], [4, -44], [12, 30.5]] as [number, number][],
+};
+
 export const MAP_BOXES = boxes;
 export const MAP_RAMPS = ramps;
 export const WAREHOUSE = WH;
@@ -176,6 +184,15 @@ export function addSector09Colliders(physics: { addBox: (c: THREE.Vector3, h: TH
     const { center, half, q } = rampTransform(r, X_RAMPS.includes(r));
     physics.addBox(center, half, q);
   }
+  // props: lamp poles, floodlight masts, the parked car, barrels
+  const Y = new THREE.Vector3(0, 1, 0);
+  for (const [x, z] of ARENA_PROPS.lamps) physics.addBox(new THREE.Vector3(x, 3, z), new THREE.Vector3(0.15, 3, 0.15));
+  for (const [x, z] of ARENA_PROPS.floods) physics.addBox(new THREE.Vector3(x, 1.5 + 3.5, z), new THREE.Vector3(0.15, 3.5, 0.15));
+  const c = ARENA_PROPS.car;
+  const cq = new THREE.Quaternion().setFromAxisAngle(Y, c.yaw);
+  physics.addBox(new THREE.Vector3(c.x, 0.62, c.z), new THREE.Vector3(0.95, 0.31, 2.2), cq);
+  physics.addBox(new THREE.Vector3(c.x, 0.62, c.z).add(new THREE.Vector3(0, 0.5, 0.2).applyQuaternion(cq)), new THREE.Vector3(0.8, 0.25, 1.1), cq);
+  for (const [x, z] of ARENA_PROPS.barrels) physics.addBox(new THREE.Vector3(x, 0.5, z), new THREE.Vector3(0.33, 0.5, 0.33));
 }
 
 /** Ramp as a tilted slab: returns center, half extents and rotation. */

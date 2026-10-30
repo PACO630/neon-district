@@ -415,7 +415,7 @@ export function buildCity(physics: Physics, settings: GraphicsSettings): CityBui
     b.add(boxUV(4.6, 0.7, 4.6, 2), L.m.concrete, V(x, curbH + 0.35, z), { collide: true });
     b.add(new THREE.BoxGeometry(4.62, 0.04, 4.62), L.neon(0xffd9a0, 1.6), V(x, curbH + 0.7, z), { cast: false });
     for (let k = 0; k < 7; k++) b.add(new THREE.IcosahedronGeometry(0.55 + rand() * 0.35, 0), L.m.foliage, V(x + (rand() - 0.5) * 3.2, curbH + 0.95, z + (rand() - 0.5) * 3.2));
-    b.add(new THREE.CylinderGeometry(0.12, 0.12, 6.5, 12), L.m.metalDark, V(x, curbH + 3.95, z), { collide: false });
+    b.add(new THREE.CylinderGeometry(0.12, 0.12, 6.5, 12), L.m.metalDark, V(x, curbH + 3.95, z), { collide: true });
     for (let k = 0; k < 4; k++) b.add(new THREE.CylinderGeometry(0.13, 0.13, 0.9, 12), L.neon(CYAN, 2.2), V(x, curbH + 2 + k * 1.5, z), { cast: false });
     anchors.push({ pos: V(x, 4, z), color: new THREE.Color(0xa8f4ff), intensity: 28, distance: 10, kind: 'point' });
     P.streetLamp(ctx, V(x * 1.25, curbH, z * 0.6), Math.atan2(-x, -z) + Math.PI, 0xffd28a);
@@ -524,7 +524,7 @@ export function buildCity(physics: Physics, settings: GraphicsSettings): CityBui
       const z = cz - 5 + i * 2;
       b.add(new THREE.CylinderGeometry(0.22, 0.22, 0.08, 14), L.m.lacquer, V(25.2, curbH + 0.75, z));
       b.add(new THREE.CylinderGeometry(0.04, 0.04, 0.72, 6), L.m.chrome, V(25.2, curbH + 0.36, z));
-      if (i % 2 === 0) npcs.push({ kind: 'patron', pos: V(25.2, curbH + 0.32, z), yaw: -Math.PI / 2, name: ['Ghost', 'Nix', 'Vera', 'Kade'][i % 4], seat: true, lines: ['They say SECTOR 09 still has live wiring. Bring armor.', 'Drinks here cost more than my cyberarm.', 'The Tactical Gate is north. Grab a crew first.'] });
+      if (i % 2 === 0) npcs.push({ kind: 'patron', pos: V(24.4, curbH, z + 0.6), yaw: -Math.PI / 2, name: ['Ghost', 'Nix', 'Vera', 'Kade'][i % 4], seat: true, lines: ['They say SECTOR 09 still has live wiring. Bring armor.', 'Drinks here cost more than my cyberarm.', 'The Tactical Gate is north. Grab a crew first.'] });
     }
     // booths
     for (const z of [cz - 7, cz + 7]) {

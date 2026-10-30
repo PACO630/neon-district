@@ -188,8 +188,10 @@ export class MatchHost {
     const atk = this.teamPlayers('ATK');
     const carrier = atk.length ? atk[Math.floor(Math.random() * atk.length)].id : null;
     m.bomb = { state: carrier ? 'carried' : 'dropped', carrier, pos: carrier ? spawns[carrier].slice(0, 3) as [number, number, number] : [0, 0, 44], site: null, planter: null, defuser: null, progress: 0, action: null };
-    this.room.hostEvent({ e: 'roundStart', round: m.round, spawns, carrier, restart });
+    // State first, then the event: clients must receive alive=true before they respawn, otherwise
+    // the previous round's state (alive=false) would immediately kill them again.
     this.room.commit();
+    queueMicrotask(() => this.room.hostEvent({ e: 'roundStart', round: m.round, spawns, carrier, restart }));
   }
 
   private freshPState(feet: THREE.Vector3, yaw: number): PState {

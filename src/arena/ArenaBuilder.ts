@@ -5,7 +5,7 @@ import { distantSkyline, fogLayer, lightCone } from '../engine/Atmosphere';
 import { boxUV, MaterialLib, StaticBatcher, type LightAnchor } from '../engine/Builder';
 import * as P from '../engine/props';
 import { neonText } from '../engine/textures';
-import { ARENA_SHELTERS, BOUNDS, FLOOR_RECTS, MAP_BOXES, MAP_RAMPS, rampTransform, SITES, TUNNEL_Y, WAREHOUSE, X_RAMPS } from './Sector09';
+import { ARENA_PROPS, ARENA_SHELTERS, BOUNDS, FLOOR_RECTS, MAP_BOXES, MAP_RAMPS, rampTransform, SITES, TUNNEL_Y, WAREHOUSE, X_RAMPS } from './Sector09';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
@@ -82,11 +82,11 @@ export function buildArenaVisuals(settings: GraphicsSettings): ArenaBuild {
 
   // ------------------------------------------------------------ lighting & dressing
   const sodium = 0xffa64d, cool = 0xbfe0ff;
-  for (const [x, z, yaw] of [[-45, 30, -Math.PI / 2], [-45, 0, -Math.PI / 2], [45, 30, Math.PI / 2], [45, 0, Math.PI / 2], [0, 44, Math.PI], [0, -46, 0], [-30, -48, 0], [30, -48, 0], [-4, 20, Math.PI], [12, -18, Math.PI / 2], [-45, -4, -Math.PI / 2], [45, 14, Math.PI / 2], [-24, 44, Math.PI], [24, 44, Math.PI], [-13.5, 8, -Math.PI / 2], [7.5, 4, Math.PI / 2], [-13, -36, 0], [2, -36, 0]] as const) {
+  for (const [x, z, yaw] of ARENA_PROPS.lamps) {
     P.streetLamp(ctx, V(x, 0, z), yaw, x === 0 || Math.abs(z) > 40 ? cool : sodium, 6);
   }
   // floodlights on A dock
-  for (const [x, z] of [[24, -15], [44, -39]]) {
+  for (const [x, z] of ARENA_PROPS.floods) {
     b.add(new THREE.CylinderGeometry(0.1, 0.12, 7, 8), L.m.metalDark, V(x, 1.5 + 3.5, z));
     b.add(new THREE.BoxGeometry(0.8, 0.5, 0.3), L.neon(0xfff4e0, 6), V(x, 8.6, z));
     anchors.push({ pos: V(x, 8.4, z), color: new THREE.Color(0xfff0d8), intensity: 400, distance: 30, kind: 'spot', dir: V(34 - x, -7, -26 - z).normalize(), angle: 0.7 });
@@ -117,8 +117,8 @@ export function buildArenaVisuals(settings: GraphicsSettings): ArenaBuild {
   P.neonBar(ctx, V(-13.9, 0.2, 18.1), V(-13.9, 9.5, 18.1), 0x8aff3a, 0.05);
   // parked vehicle and barrels in lanes
   const truck = new THREE.MeshPhysicalMaterial({ color: 0x1a2a3a, metalness: 0.7, roughness: 0.3, clearcoat: 1 });
-  P.car(ctx, V(-42, 0, 14), 0.1, truck);
-  for (const [x, z] of [[40, 34], [-26, 46], [4, -44], [12, 30.5]]) b.add(new THREE.CylinderGeometry(0.35, 0.35, 1.0, 14), L.m.containerBlue, V(x, 0.5, z));
+  P.car(ctx, V(ARENA_PROPS.car.x, 0, ARENA_PROPS.car.z), ARENA_PROPS.car.yaw, truck);
+  for (const [x, z] of ARENA_PROPS.barrels) b.add(new THREE.CylinderGeometry(0.35, 0.35, 1.0, 14), L.m.containerBlue, V(x, 0.5, z));
   // roof edges drip
   for (let x = wh.x0; x < wh.x1; x += 3) drips.push(new THREE.Vector4(x, wh.h + 0.3, wh.z1 + 0.15, wh.h + 0.2));
   for (let x = 8; x < 30; x += 3) drips.push(new THREE.Vector4(x, 10, 40.2, 9.9));
