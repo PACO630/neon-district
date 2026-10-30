@@ -251,7 +251,7 @@ export class CityScene {
     }
     const input = this.ctx.input;
     this.mover.look(input, 1.45);
-    this.mover.update(dt, input, { speed: 5.2, walkMult: 0.45, crouchMult: 0.45, frozen: false, faceMovement: false });
+    this.mover.update(dt, input, { speed: 7.2, walkMult: 0.42, crouchMult: 0.4, frozen: false, faceMovement: false });
     this.physics.step();
     // emotes
     if (input.pressed('emote1')) { this.emote = 'wave'; this.emoteUntil = this.time + 2.4; }
@@ -298,6 +298,7 @@ export class CityScene {
     void ANIM_NAMES;
   }
 
+  setRain(on: boolean): void { this.env?.setRain(on); }
   isIndoor(p: THREE.Vector3): boolean { return this.build.indoor.some((b) => b.containsPoint(p)); }
   get playerPos(): THREE.Vector3 { return this.mover.feet; }
   get playerYaw(): number { return this.mover.yaw; }

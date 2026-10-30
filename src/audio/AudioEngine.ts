@@ -18,6 +18,10 @@ export class AudioEngine {
   private music: BarMusic | null = null;
   private pending: AudioSettings | null = null;
   private lastStep = 0;
+  private rainOn = true;
+  private lastOutdoor = 1;
+  private rainNodes: { hi: GainNode; lo: GainNode } | null = null;
+  private pad: { stop: () => void } | null = null;
 
   /** Must be called from a user gesture (browser autoplay policy). */
   unlock(): void {
@@ -184,10 +188,13 @@ export class AudioEngine {
   }
   footstep(pos: THREE.Vector3 | undefined, wet: boolean, loud = 1): void {
     if (!this.ok()) return;
-    const out = this.dest('sfx', pos, 3);
-    this.noiseBurst('brown', out, { dur: 0.09, gain: 0.35 * loud, filter: 'lowpass', freq: 700 });
-    this.noiseBurst('white', out, { dur: 0.05, gain: 0.08 * loud, filter: 'bandpass', freq: 2200, q: 1.5 });
-    if (wet) this.noiseBurst('white', out, { dur: 0.16, gain: 0.12 * loud, filter: 'highpass', freq: 2500, attack: 0.01 });
+    const out = this.dest('sfx', pos, 4);
+    const t = this.ctx!.currentTime;
+    // heel thud + sole scuff + (in puddles) a splash
+    this.noiseBurst('brown', out, { t, dur: 0.11, gain: 0.9 * loud, filter: 'lowpass', freq: 900 });
+    this.tone(out, { t, type: 'sine', freq: 95 + Math.random() * 25, freqEnd: 55, dur: 0.07, gain: 0.35 * loud });
+    this.noiseBurst('white', out, { t: t + 0.012, dur: 0.06, gain: 0.22 * loud, filter: 'bandpass', freq: 2600 + Math.random() * 800, q: 1.2 });
+    if (wet) this.noiseBurst('white', out, { t: t + 0.01, dur: 0.18, gain: 0.3 * loud, filter: 'bandpass', freq: 3200, q: 0.8, attack: 0.008 });
   }
   /** Throttled local footsteps from the movement controller. */
   localStep(wet: boolean, speed: number, crouched: boolean): void {
@@ -309,27 +316,67 @@ export class AudioEngine {
       nodes.push(src);
       return { g, f };
     };
-    const rainHi = loop('pink', 'highpass', 1200, 0.35);
-    const rainLo = loop('brown', 'lowpass', 500, kind === 'city' ? 0.25 : 0.15);
-    const wind = loop('brown', 'bandpass', 300, 0.25, 0.6);
-    const traffic = kind === 'city' ? loop('brown', 'lowpass', 120, 0.3) : null;
-    // modulate wind
+    // quiet beds: rain is a texture, not a wall of noise
+    const rain = this.rainOn ? 1 : 0;
+    const rainHi = loop('pink', 'bandpass', 2600, 0.06 * rain, 0.5);
+    const rainLo = loop('brown', 'lowpass', 420, 0.05 * rain);
+    const wind = loop('brown', 'bandpass', 300, 0.05, 0.6);
+    const traffic = kind === 'city' ? loop('brown', 'lowpass', 130, 0.09) : loop('brown', 'lowpass', 90, 0.05);
+    const crowd = kind === 'city' ? loop('pink', 'bandpass', 650, 0.035, 1.4) : null;
+    // mains hum of the district: power lines in the city, transformers in the arena
+    const hum = ctx.createGain();
+    hum.gain.value = kind === 'city' ? 0.012 : 0.02;
+    hum.connect(this.buses.ambient);
+    for (const [f, a] of [[60, 1], [120, 0.5], [180, 0.25]] as const) {
+      const o = ctx.createOscillator();
+      o.frequency.value = f;
+      const g = ctx.createGain();
+      g.gain.value = a;
+      o.connect(g).connect(hum);
+      o.start();
+      nodes.push(o);
+    }
+    // modulate wind and crowd so the beds breathe
     const lfo = ctx.createOscillator();
     lfo.frequency.value = 0.07;
     const lfoGain = ctx.createGain();
     lfoGain.gain.value = 180;
     lfo.connect(lfoGain).connect(wind.f.frequency);
+    if (crowd) { const cg = ctx.createGain(); cg.gain.value = 0.012; lfo.connect(cg).connect(crowd.g.gain); }
     lfo.start();
     nodes.push(lfo);
+    this.rainNodes = { hi: rainHi.g, lo: rainLo.g };
     let alive = true;
     const timers: number[] = [];
     const schedule = (fn: () => void, min: number, max: number) => {
       const tick = () => { if (!alive) return; fn(); timers.push(window.setTimeout(tick, min + Math.random() * (max - min))); };
       timers.push(window.setTimeout(tick, Math.random() * max));
     };
-    // individual droplets / gutter drips
-    schedule(() => this.tone(this.buses.ambient, { type: 'sine', freq: 1500 + Math.random() * 2500, freqEnd: 800, dur: 0.04, gain: 0.02 }), 120, 500);
+    // individual droplets / gutter drips (only while it rains)
+    schedule(() => { if (this.rainOn) this.tone(this.buses.ambient, { type: 'sine', freq: 1500 + Math.random() * 2500, freqEnd: 800, dur: 0.04, gain: 0.025 }); }, 150, 600);
+    // distant thunder while it rains
+    schedule(() => {
+      if (!this.rainOn) return;
+      const t = ctx.currentTime;
+      this.noiseBurst('brown', this.buses.ambient, { t, dur: 5, gain: 0.22, filter: 'lowpass', freq: 260, freqEnd: 60, attack: 0.6 });
+      this.noiseBurst('brown', this.buses.ambient, { t: t + 0.3, dur: 2.5, gain: 0.12, filter: 'lowpass', freq: 500, freqEnd: 90, attack: 0.05 });
+    }, 35000, 80000);
+    if (kind === 'arena') {
+      // industrial ambience: far metal clanks and steam vents
+      schedule(() => { const t = ctx.currentTime; this.tone(this.buses.ambient, { t, type: 'triangle', freq: 180 + Math.random() * 220, freqEnd: 120, dur: 1.4, gain: 0.03 }); this.noiseBurst('white', this.buses.ambient, { t, dur: 0.3, gain: 0.04, filter: 'bandpass', freq: 1400, q: 3 }); }, 6000, 15000);
+      schedule(() => this.noiseBurst('white', this.buses.ambient, { dur: 2.2, gain: 0.03, filter: 'highpass', freq: 3000, attack: 0.3 }), 12000, 30000);
+    }
     if (kind === 'city') {
+      this.startCityPad();
+      // car horns in the distance
+      schedule(() => {
+        const t = ctx.currentTime;
+        const f = 330 + Math.random() * 200;
+        for (let i = 0; i < (Math.random() > 0.5 ? 2 : 1); i++) {
+          this.tone(this.buses.ambient, { t: t + i * 0.3, type: 'sawtooth', freq: f, dur: 0.22, gain: 0.012 });
+          this.tone(this.buses.ambient, { t: t + i * 0.3, type: 'sawtooth', freq: f * 1.26, dur: 0.22, gain: 0.01 });
+        }
+      }, 7000, 18000);
       // flying car fly-bys
       schedule(() => {
         const t = ctx.currentTime;
@@ -384,16 +431,70 @@ export class AudioEngine {
       },
       setLevel: (outdoor) => {
         const t = ctx.currentTime;
-        rainHi.g.gain.setTargetAtTime(0.06 + 0.29 * outdoor, t, 0.3);
-        rainHi.f.frequency.setTargetAtTime(outdoor > 0.5 ? 1200 : 600, t, 0.3);
-        rainLo.g.gain.setTargetAtTime(0.08 + 0.17 * outdoor, t, 0.3);
-        wind.g.gain.setTargetAtTime(0.05 + 0.2 * outdoor, t, 0.3);
-        if (traffic) traffic.g.gain.setTargetAtTime(0.1 + 0.2 * outdoor, t, 0.3);
+        const r = this.rainOn ? 1 : 0;
+        rainHi.g.gain.setTargetAtTime((0.015 + 0.05 * outdoor) * r, t, 0.4);
+        rainHi.f.frequency.setTargetAtTime(outdoor > 0.5 ? 2600 : 900, t, 0.4);
+        rainLo.g.gain.setTargetAtTime((0.02 + 0.035 * outdoor) * r, t, 0.4);
+        wind.g.gain.setTargetAtTime(0.015 + 0.04 * outdoor, t, 0.4);
+        traffic.g.gain.setTargetAtTime((kind === 'city' ? 0.04 : 0.02) + 0.05 * outdoor, t, 0.4);
+        if (crowd) crowd.g.gain.setTargetAtTime(0.02 + 0.02 * outdoor, t, 0.4);
       },
     };
   }
-  setOutdoor(v: number): void { this.ambience?.setLevel(v); }
-  stopAmbience(): void { this.ambience?.stop(); this.ambience = null; }
+  setOutdoor(v: number): void { this.lastOutdoor = v; this.ambience?.setLevel(v); }
+  stopAmbience(): void { this.ambience?.stop(); this.ambience = null; this.stopCityPad(); }
+
+  /** Host weather toggle: fades the rain beds in/out. */
+  setRain(on: boolean): void {
+    if (this.rainOn === on) return;
+    this.rainOn = on;
+    if (!this.ctx || !this.rainNodes) return;
+    if (on && this.rainNodes.hi.gain.value < 1e-4) {
+      // beds were created silent (rain was off at start) → restart them with rain
+      this.ambience?.setLevel(this.lastOutdoor);
+    }
+    this.ambience?.setLevel(this.lastOutdoor);
+  }
+
+  /** Slow, quiet ambient synth pad for the city (music bus). */
+  private startCityPad(): void {
+    if (!this.ctx || this.pad) return;
+    const ctx = this.ctx;
+    const out = ctx.createGain();
+    out.gain.value = 0;
+    out.gain.setTargetAtTime(0.05, ctx.currentTime, 3);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 900;
+    lp.Q.value = 2;
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.05;
+    const lg = ctx.createGain();
+    lg.gain.value = 500;
+    lfo.connect(lg).connect(lp.frequency);
+    lfo.start();
+    out.connect(lp).connect(this.buses.music);
+    const chords = [[45, 52, 57, 64], [41, 48, 53, 60], [43, 50, 55, 62], [40, 47, 52, 59]]; // Am F G Em (MIDI)
+    const voices: OscillatorNode[] = [];
+    for (let v = 0; v < 4; v++) for (const det of [-6, 6]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.detune.value = det;
+      o.connect(out);
+      o.start();
+      voices.push(o);
+    }
+    let step = 0;
+    const setChord = () => {
+      const c = chords[step++ % chords.length];
+      const t = ctx.currentTime;
+      voices.forEach((o, i) => o.frequency.setTargetAtTime(440 * Math.pow(2, (c[Math.floor(i / 2)] - 69) / 12), t, 1.5));
+    };
+    setChord();
+    const timer = window.setInterval(setChord, 9000);
+    this.pad = { stop: () => { clearInterval(timer); out.gain.setTargetAtTime(0, ctx.currentTime, 0.5); setTimeout(() => { voices.forEach((o) => o.stop()); lfo.stop(); out.disconnect(); }, 1500); } };
+  }
+  private stopCityPad(): void { this.pad?.stop(); this.pad = null; }
 
   startBarMusic(pos: THREE.Vector3): void {
     if (!this.ctx) return;

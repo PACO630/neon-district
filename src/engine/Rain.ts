@@ -211,6 +211,15 @@ export class Rain {
     }
   }
 
+  private baseOpacity = new Map<THREE.ShaderMaterial, number>();
+  setIntensity(k: number): void {
+    for (const m of this.mats) {
+      if (!m.uniforms.uOpacity) continue;
+      if (!this.baseOpacity.has(m)) this.baseOpacity.set(m, m.uniforms.uOpacity.value);
+      m.uniforms.uOpacity.value = this.baseOpacity.get(m)! * k;
+    }
+  }
+
   setGround(y: number): void {
     this.ground = y;
     for (const m of this.mats) if (m.uniforms.uGround && m.uniforms.uRadius) m.uniforms.uGround.value = y;

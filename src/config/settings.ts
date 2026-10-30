@@ -64,7 +64,7 @@ export function defaultSettings(): Settings {
   const preset = detectPreset();
   return {
     graphics: { preset, ...PRESETS[preset], fpsLimit: isMobile() ? 30 : 0, motionBlur: false, fov: 75 },
-    audio: { master: 0.8, music: 0.6, sfx: 0.85, ambient: 0.7 },
+    audio: { master: 0.85, music: 0.55, sfx: 0.9, ambient: 0.55 },
     controls: { sensitivity: 1, invertY: false, touchSensitivity: 1, touchLayoutScale: 1 },
     name: '',
     look: { jacket: 0x1c2230, visor: 0x00e5ff, trim: 0x00e5ff },

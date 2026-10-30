@@ -187,6 +187,7 @@ export function pauseMenu(game: Game): void {
   m.body.append(h('div', { class: 'pause-menu' },
     b('Resume', () => game.input.requestLock(), 'primary'),
     !inArena ? b('Room · Invites', () => invitesPanel(game)) : null,
+    weatherRow(game),
     b('Players', () => playersPanel(game)),
     !inArena ? b('Party', () => partyPanel(game)) : null,
     b('Settings', () => game.openSettings()),
@@ -194,6 +195,20 @@ export function pauseMenu(game: Game): void {
     b('Leave room', () => game.leaveRoom(), 'danger'),
     h('div', { class: 'note', style: 'margin-top:8px' }, `Room ${game.room.state?.roomId ?? ''} · ${Object.keys(game.room.state?.players ?? {}).length}/10 players · you are ${game.room.isHost ? 'the HOST' : 'a guest'}`),
   ));
+}
+
+/** Host-only rain switch; guests see the current weather. */
+function weatherRow(game: Game): HTMLElement {
+  const row = h('div', { class: 'row weather-row' });
+  const draw = () => {
+    const on = game.room.state?.rain !== false;
+    if (!game.room.isHost) { replace(row, h('span', { class: 'label' }, 'Weather'), h('span', { class: 'note' }, on ? 'Rain ON' : 'Rain OFF'), h('span', { class: 'note' }, '(host controls)')); return; }
+    replace(row, h('span', { class: 'label' }, 'Weather'), h('div', { class: 'seg' },
+      h('button', { class: on ? 'on' : '', on: { click: async () => { await game.room.request('weather.rain', { on: true }); draw(); } } }, 'Rain ON'),
+      h('button', { class: on ? '' : 'on', on: { click: async () => { await game.room.request('weather.rain', { on: false }); draw(); } } }, 'Rain OFF')));
+  };
+  draw();
+  return row;
 }
 
 // ---------------------------------------------------------------- TACTICAL GATE / MATCH SETUP

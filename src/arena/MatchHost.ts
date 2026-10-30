@@ -25,7 +25,8 @@ interface Projectile { id: number; type: GrenadeId; body: import('@dimforge/rapi
 interface Area { pos: THREE.Vector3; until: number; owner: string; radius: number }
 
 const TICK = 1 / 30;
-const RUN_SPEED = 5.4;
+/** Base run speed (m/s); shared with the client controller so validation matches movement. */
+export const RUN_SPEED = 6.6;
 const ok = (msg?: string, data?: any): ReqResult => ({ ok: true, msg, data });
 const fail = (msg: string): ReqResult => ({ ok: false, msg });
 const NADE_CODE: Record<GrenadeId, number> = { smoke: 0, flash: 1, molotov: 2 };

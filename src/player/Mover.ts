@@ -64,11 +64,11 @@ export class Mover {
     const mag = Math.min(1, wish.length());
     if (mag > 0.01) wish.normalize();
     const target = wish.multiplyScalar(speed * mag);
-    const accel = this.grounded ? 14 : 3;
+    const accel = this.grounded ? 16 : 3;
     this.vel.x += (target.x - this.vel.x) * Math.min(1, accel * dt);
     this.vel.z += (target.z - this.vel.z) * Math.min(1, accel * dt);
     if (this.grounded) {
-      if (input.pressed('jump') && !o.frozen && !this.crouching) { this.vel.y = 6.2; this.grounded = false; }
+      if (input.pressed('jump') && !o.frozen && !this.crouching) { this.vel.y = 6.6; this.grounded = false; }
       else this.vel.y = -2;
     } else {
       this.vel.y -= 19 * dt;

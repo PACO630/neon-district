@@ -5,7 +5,7 @@ import type { GraphicsSettings } from '../config/settings';
 import { createSky, neonEnvironmentScene } from './Atmosphere';
 import { LightPool, type LightAnchor } from './Builder';
 import { Rain, type Shelter } from './Rain';
-import { LAYER_REFLECT_SKIP } from './shaders';
+import { GLOBAL, LAYER_REFLECT_SKIP } from './shaders';
 
 export class NightEnvironment {
   readonly hemi: THREE.HemisphereLight;
@@ -79,7 +79,17 @@ export class NightEnvironment {
     this.scene.environmentIntensity = this.envIntensity;
   }
 
+  private rainTarget = 1;
+  /** Fades rain particles, wet shading and glass droplets in or out. */
+  setRain(on: boolean): void { this.rainTarget = on ? 1 : 0; }
+  get raining(): boolean { return this.rainTarget > 0; }
+
   update(dt: number, camera: THREE.Camera, focus: THREE.Vector3): void {
+    const u = GLOBAL.uRain;
+    u.value += (this.rainTarget - u.value) * Math.min(1, dt * 1.6);
+    if (Math.abs(this.rainTarget - u.value) < 0.002) u.value = this.rainTarget;
+    this.rain.group.visible = u.value > 0.02;
+    this.rain.setIntensity(u.value);
     // keep the shadow frustum centered on the player, snapped to texels to avoid shimmering
     const texel = (this.shadowSize * 2) / this.moon.shadow.mapSize.x;
     const fx = Math.round(focus.x / texel) * texel, fz = Math.round(focus.z / texel) * texel;

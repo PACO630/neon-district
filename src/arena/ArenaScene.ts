@@ -19,6 +19,7 @@ import type { GameEvent } from '../room/Room';
 import { playerSide, sideOf, type MatchPlayer, type MatchState, type RoomState, type Side } from '../room/RoomState';
 import { buildArenaVisuals, type ArenaBuild } from './ArenaBuilder';
 import { addSector09Colliders, ARENA_SHELTERS, BUY_ZONES, inZone, SITES } from './Sector09';
+import { RUN_SPEED } from './MatchHost';
 
 interface RemoteP { id: string; avatar: Avatar; buf: { t: number; p: NetPlayer }[]; alive: boolean; stepAcc: number; lastAnim: number }
 export interface KillFeedItem { killer: string; victim: string; weapon: string; head: boolean; t: number; mine: boolean; killerSide: Side | null; victimSide: Side | null }
@@ -497,7 +498,7 @@ export class ArenaScene {
       const firing = input.isHeld('fire') && this.time - this.lastShotAt < 0.15;
       if (!firing) this.recoil.multiplyScalar(Math.max(0, 1 - dt * 6));
       this.bloom = Math.max(0, this.bloom - dt * 3);
-      this.mover.update(dt, input, { speed: 5.4 * (WEAPONS[this.equipped as WeaponId]?.speedMult ?? 1), walkMult: 0.52, crouchMult: 0.36, frozen, faceMovement: false });
+      this.mover.update(dt, input, { speed: RUN_SPEED * (WEAPONS[this.equipped as WeaponId]?.speedMult ?? 1), walkMult: 0.52, crouchMult: 0.36, frozen, faceMovement: false });
       this.physics.step();
       // landing / footsteps
       if (this.mover.grounded && this.mover.speedNow > 3.5) {
@@ -671,6 +672,7 @@ export class ArenaScene {
       this.equip(owned[(i + 1) % owned.length]);
     }
     if (input.pressed('slot5') && m.bomb.carrier === me.id) this.equip('c4');
+    this.ctx.touch.setGrenadeAvailable(me.grenades.length > 0);
     if (input.pressed('nextWeapon') || input.pressed('prevWeapon')) {
       const cycle = [me.primary, me.secondary, 'knife', ...me.grenades, m.bomb.carrier === me.id ? 'c4' : null].filter(Boolean) as string[];
       const i = cycle.indexOf(this.equipped);
@@ -685,7 +687,9 @@ export class ArenaScene {
     const canShoot = m.phase !== 'freeze' && m.phase !== 'halftime' && m.phase !== 'ended' && this.time >= this.drawEnd;
 
     // reload
-    if (w && w.cls !== 'melee' && (input.pressed('reload') || (input.pressed('fire') && (this.ammo[item]?.[0] ?? 0) === 0))) this.tryReload(w);
+    // read the trigger edge exactly once per frame (pressed() consumes it)
+    const trigger = input.pressed('fire');
+    if (w && w.cls !== 'melee' && (input.pressed('reload') || (trigger && (this.ammo[item]?.[0] ?? 0) === 0))) this.tryReload(w);
     if (this.reloadEnd && this.time >= this.reloadEnd) {
       this.reloadEnd = 0;
       const a = this.ammo[item];
@@ -694,7 +698,7 @@ export class ArenaScene {
 
     // grenades
     if (item === 'smoke' || item === 'flash' || item === 'molotov') {
-      if (input.pressed('fire') && canShoot) this.throwGrenade(item);
+      if (trigger && canShoot) this.throwGrenade(item);
       return;
     }
     // C4
@@ -707,7 +711,7 @@ export class ArenaScene {
     }
     if (!w || !canShoot) return;
     const semi = !w.auto;
-    const firePressed = semi ? input.pressed('fire') : input.isHeld('fire');
+    const firePressed = semi ? trigger : input.isHeld('fire');
     if (!input.isHeld('fire')) this.triggerReleased = true;
     if (!firePressed || this.time < this.nextFire || this.reloadEnd) return;
     if (w.cls !== 'melee') {
@@ -823,6 +827,7 @@ export class ArenaScene {
     if (m.phase === 'live') return Math.max(0, MATCH_RULES.buyWindow - (MATCH_RULES.roundTime - this.phaseRemaining));
     return 0;
   }
+  setRain(on: boolean): void { this.env?.setRain(on); }
   get position(): THREE.Vector3 { return this.mover.feet; }
   get clock(): number { return this.time; }
   get moveSpeed(): number { return this.mover.speedNow; }

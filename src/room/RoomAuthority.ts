@@ -33,6 +33,7 @@ export class RoomAuthority {
     r.registerHandler('setup.shuffle', (from) => this.shuffle(from));
     r.registerHandler('match.start', (from) => (from === this.s.hostId ? this.startMatch() : fail('Only the host can start the match.')));
     r.registerHandler('kick', (from, a) => this.kickFromRoom(from, a.target));
+    r.registerHandler('weather.rain', (from, a) => this.setRain(from, !!a.on));
   }
 
   private get s(): RoomState { return this.room.state!; }
@@ -246,6 +247,15 @@ export class RoomAuthority {
     this.s.setup.bravo = ids.slice(half, half + 5);
     this.room.commit();
     return ok('Teams shuffled.');
+  }
+
+  setRain(from: string, on: boolean): ReqResult {
+    const deny = from === this.s.hostId ? null : fail('Only the host can change the weather.');
+    if (deny) return deny;
+    this.s.rain = on;
+    this.room.commit();
+    this.room.systemChat(on ? 'The host turned the rain ON.' : 'The host turned the rain OFF.');
+    return ok(on ? 'Rain enabled.' : 'Rain disabled.');
   }
 
   kickFromRoom(from: string, target: unknown): ReqResult {

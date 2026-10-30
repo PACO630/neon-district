@@ -160,6 +160,7 @@ export class Game implements GameContext {
   }
 
   private onRoomClosed(reason: string): void {
+    this.applyRain(true);
     this.matchHost?.dispose();
     this.matchHost = null;
     this.joinPending = false;
@@ -177,6 +178,7 @@ export class Game implements GameContext {
   private onRoomState(): void {
     const s = this.room.state;
     if (!s) return;
+    this.applyRain(s.rain !== false);
     if (this.joinPending && s.players[this.room.selfId]) {
       this.joinPending = false;
       document.querySelectorAll('.modal-wrap').forEach((m) => m.remove());
@@ -192,6 +194,13 @@ export class Game implements GameContext {
       this.matchHost.begin(false, 0);
     }
     if (!s.match && this.matchHost) { this.matchHost.dispose(); this.matchHost = null; }
+  }
+
+  /** Host-controlled weather → visuals and audio on every client. */
+  applyRain(on: boolean): void {
+    this.city?.setRain(on);
+    this.arena?.setRain(on);
+    this.audio.setRain(on);
   }
 
   private startMatch() {
@@ -267,6 +276,7 @@ export class Game implements GameContext {
     };
     a.onBuyToggle = () => this.arenaHud.toggleBuy();
     a.enter();
+    this.applyRain(this.room.state?.rain !== false);
     document.body.classList.add('mode-arena');
     this.cityHud.show(false);
     this.arenaHud.show(true);

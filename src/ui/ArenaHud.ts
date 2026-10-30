@@ -45,6 +45,16 @@ export class ArenaHud {
   constructor(private game: Game) {
     this.hpWrap = h('div', { class: 'vital hp' }, this.hpV, h('div', { class: 'bar' }, this.hpBar), h('div', { class: 'k' }, 'HEALTH'));
     this.mmBase = renderMinimap(256);
+    // touch: tap a weapon slot to switch (slot labels start with their number)
+    this.slots.addEventListener('touchstart', (e) => {
+      const el = (e.target as HTMLElement).closest('.s');
+      const n = el?.getAttribute('data-slot');
+      if (!n) return;
+      e.preventDefault();
+      const act = `slot${n}` as 'slot1';
+      game.input.press(act);
+      setTimeout(() => game.input.release(act), 60);
+    }, { passive: false });
     this.el = h('div', { id: 'arena-hud', class: 'hidden' },
       h('div', { class: 'panel minimap' }, this.mmCanvas),
       h('div', { class: 'topbar' }, this.scA, h('div', { class: 'panel' }, this.timer), this.scB),
@@ -226,7 +236,7 @@ export class ArenaHud {
       if (this.cache.get(this.slots) !== key) {
         this.cache.set(this.slots, key);
         const active = (s: string) => (s.startsWith('1') && item === me.primary) || (s.startsWith('2') && item === me.secondary) || (s.startsWith('3') && item === 'knife') || (s.startsWith('4') && ['smoke', 'flash', 'molotov'].includes(item)) || (s.startsWith('5') && item === 'c4');
-        replace(this.slots, ...sl.map((s) => h('span', { class: `s ${active(s) ? 'on' : ''}` }, s)));
+        replace(this.slots, ...sl.map((s) => h('span', { class: `s ${active(s) ? 'on' : ''}`, 'data-slot': s[0] }, s)));
       }
     }
     // score & timer (attack side shown on the left)

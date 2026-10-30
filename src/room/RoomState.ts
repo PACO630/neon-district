@@ -92,6 +92,8 @@ export interface RoomState {
   epoch: number;
   version: number;
   nextJoinOrder: number;
+  /** host-controlled weather; undefined (older snapshots) means raining */
+  rain?: boolean;
   players: Record<string, PlayerInfo>;
   parties: Record<string, Party>;
   setup: MatchSetup;
@@ -115,7 +117,7 @@ export function sortedPlayers(state: RoomState): PlayerInfo[] {
 export function emptyRoom(roomId: string, hostId: string): RoomState {
   return {
     roomId, hostId, epoch: 1, version: 1, nextJoinOrder: 0,
-    players: {}, parties: {}, setup: { alpha: [], bravo: [], rounds: 12 }, match: null,
+    players: {}, parties: {}, setup: { alpha: [], bravo: [], rounds: 12 }, match: null, rain: true,
   };
 }
 
