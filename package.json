@@ -1,0 +1,28 @@
+{
+  "name": "neon-district",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "models": "node tools/build-models.mjs",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.14.0",
+    "@fontsource/jetbrains-mono": "^5.1.1",
+    "@fontsource/orbitron": "^5.1.0",
+    "@fontsource/rajdhani": "^5.1.0",
+    "jsqr": "^1.4.0",
+    "qrcode": "^1.5.4",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.5",
+    "@types/three": "^0.170.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}
